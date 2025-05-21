@@ -1,0 +1,25 @@
+ext.useExpoPublishing = {
+  if (!project.plugins.hasPlugin('maven-publish')) {
+    apply plugin: 'maven-publish'
+  }
+  project.android {
+    publishing {
+      // Modified to avoid "release" property issue
+      publishLibraryVariants("release")
+    }
+  }
+  project.afterEvaluate {
+    publishing {
+      publications {
+        release(MavenPublication) {
+          from components.release
+        }
+      }
+      repositories {
+        maven {
+          url = mavenLocal().url
+        }
+      }
+    }
+  }
+}
