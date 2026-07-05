@@ -21,7 +21,9 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.havenmart.app",
-      "permissions": ["android.permission.RECORD_AUDIO"]
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -44,7 +46,10 @@
         {
           "photosPermission": "The app accesses your photos to let you share them with your friends."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
@@ -55,7 +60,10 @@
       },
       "eas": {
         "projectId": "aff8bb9f-7019-493c-a0c1-b7ef3ae5dc55"
-      }
+      },
+      "supabaseUrl": "http://192.168.84.128:54321",
+      "supabaseAnonKey": "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH",
+      "clerkPublishableKey": "pk_test_c2hpbmluZy1wdXAtODUuY2xlcmsuYWNjb3VudHMuZGV2JA"
     }
   }
 }

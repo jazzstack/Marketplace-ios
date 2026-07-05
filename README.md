@@ -1,50 +1,54 @@
-# Welcome to your Expo app 👋
+# HavenMart - Peer-to-Peer Marketplace
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+**Final Year Project | BCA (Specialization in CTIS) | 2022-2025 | Assam Downtown University (ADTU)**
 
-## Get started
+A cross-platform mobile marketplace application built with React Native (Expo) that connects local buyers and sellers. Users can browse listings, search by category or keyword, view item details, and communicate via in-app chat.
 
-1. Install dependencies
+## Tech Stack
 
-   ```bash
-   npm install
-   ```
+| Layer | Technology |
+|---|---|
+| Framework | Expo SDK 54 (React Native) with Expo Router |
+| Authentication | Clerk (email/password, Google OAuth) |
+| Backend / Database | Supabase (PostgreSQL, Realtime, Storage) |
+| State Management | React Context API |
+| Location | expo-location (GPS, radius-based filtering) |
+| Maps | react-native-maps |
+| UI | Custom theming (dark/light/system), react-native-reanimated |
 
-2. Start the app
+## Features
 
-   ```bash
-    npx expo start
-   ```
+- **User authentication** — Sign up, sign in, password reset, Google OAuth
+- **Marketplace listings** — Create, edit, delete listings with photos, price, category, and location
+- **Category browsing** — Sidebar navigation to filter items by category
+- **Location-based filtering** — Items shown within a configurable radius using device GPS
+- **Full-text search** — Search listings with recent search history persistence
+- **In-app chat** — Real-time messaging powered by Supabase Realtime
+- **Image gallery** — Full-screen image viewing with native share support
+- **Dark mode / light mode** — Theme toggle persisted via AsyncStorage
+- **Pull-to-refresh** — Refresh listings, categories, and banners on the home screen
 
-In the output, you'll find options to open the app in a
+## Screens
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- **Welcome** — Landing page with hero image, sign-up / sign-in options
+- **Home** — Profile header, search bar, image slider, category browser, latest items grid
+- **Sell** — Create a new listing with image upload and details form
+- **Product Details** — Full product view with image gallery, seller info, and contact button
+- **Chat** — Real-time messaging with chat history per listing
+- **Profile** — User info, my listings, my chats, theme preferences
+- **Search** — Full-text search with recent history and category browsing
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Getting Started
 
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Environment Variables
 
-## Learn more
+Create a `.env` file with Clerk and Supabase credentials.
 
-To learn more about developing your project with Expo, look at the following resources:
+## Database
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+A Supabase PostgreSQL instance with tables for users, posts, categories, sliders, chats, and messages. See `supabase-schema.sql` for the full schema.

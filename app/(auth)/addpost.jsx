@@ -15,11 +15,8 @@ import {
   FlatList,
 } from "react-native";
 import React, { useEffect, useState } from "react";
-import { addDoc, collection, getDocs, getFirestore } from "firebase/firestore";
-import { app } from "../../firebaseconfig";
+import { supabase } from "../../lib/supabase";
 import { Formik } from "formik";
-import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
-import { Picker } from "@react-native-picker/picker";
 import * as ImagePicker from "expo-image-picker";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useUser } from "@clerk/clerk-expo";
@@ -38,8 +35,6 @@ const Add = () => {
   const [Loading, SetLoading] = useState(false);
   const [image, setImage] = useState(null);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const db = getFirestore(app);
-  const storage = getStorage();
 
   useEffect(() => {
     getCategoryList();
@@ -50,10 +45,9 @@ const Add = () => {
 
   const getCategoryList = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, "Categories"));
-      const categories = querySnapshot.docs.map((doc) => doc.data());
-
-      setCategoryList(categories);
+      const { data, error } = await supabase.from("categories").select("*");
+      if (error) throw error;
+      setCategoryList(data || []);
     } catch (error) {
       console.error("Error fetching categories:", error);
     }
@@ -82,31 +76,49 @@ const Add = () => {
     try {
       const response = await fetch(image);
       const image_blob = await response.blob();
-      const storageref = ref(storage, "CommunityPost/" + Date.now() + ".jpg");
+      const fileName = "CommunityPost/" + Date.now() + ".jpg";
 
-      await uploadBytes(storageref, image_blob);
+      const { error: uploadError } = await supabase.storage
+        .from("community-posts")
+        .upload(fileName, image_blob);
 
-      const downloadurl = await getDownloadURL(storageref);
+      if (uploadError) throw uploadError;
 
-      value.image = downloadurl;
-      value.useremail = user.primaryEmailAddress.emailAddress;
-      value.username = user.fullName;
-      value.userimage = user.imageUrl;
-      value.customId = Date.now().toString();
+      const { data: urlData } = supabase.storage
+        .from("community-posts")
+        .getPublicUrl(fileName);
+
+      const downloadUrl = urlData.publicUrl;
+
+      const postData = {
+        title: value.title,
+        name: value.name,
+        description: value.desc,
+        category: value.category,
+        price: value.price,
+        address: value.address,
+        image: downloadUrl,
+        useremail: user.primaryEmailAddress.emailAddress,
+        username: user.fullName,
+        userimage: user.imageUrl,
+        custom_id: Date.now().toString(),
+      };
 
       if (location) {
-        value.location = {
-          latitude: location.latitude,
-          longitude: location.longitude,
-        };
+        postData.latitude = location.latitude;
+        postData.longitude = location.longitude;
       }
       if (address) {
-        value.formattedAddress = address.formattedAddress;
-        value.city = address.city;
-        value.region = address.region;
+        postData.formatted_address = address.formattedAddress;
+        postData.city = address.city;
+        postData.region = address.region;
       }
 
-      const docref = await addDoc(collection(db, "UserPosts"), value);
+      const { error: insertError } = await supabase
+        .from("user_posts")
+        .insert(postData);
+
+      if (insertError) throw insertError;
 
       SetLoading(false);
       Alert.alert("Post Data Uploaded Successfully");

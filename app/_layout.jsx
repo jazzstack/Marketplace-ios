@@ -3,18 +3,22 @@ import "react-native-reanimated";
 import { ClerkProvider, SignedIn, SignedOut } from "@clerk/clerk-expo";
 import { tokenCache } from "@/cache";
 import { ContextProvider } from "../Context/DataContext";
-import SyncUserToFirestore from "../components/Syncwithfirebase";
+import SyncUserToSupabase from "../components/Syncwithfirebase";
 import { useUserRole, UserRoleProvider } from "../Context/RoleContext";
 import { useEffect } from "react";
 import { ThemeProvider } from "../Context/ThemeContext";
 import { LocationProvider } from "../Context/LocationContext";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import Constants from "expo-constants";
 
 const publishableKey =
-  "pk_test_ZXZvbHZlZC1maXJlZmx5LTUxLmNsZXJrLmFjY291bnRzLmRldiQ";
+  Constants.expoConfig?.extra?.clerkPublishableKey ??
+  "";
 
 if (!publishableKey) {
-  throw new Error("Missing publishableKey please provide it in your env file");
+  throw new Error(
+    "Missing Clerk publishable key. Add clerkPublishableKey to app.json -> expo -> extra"
+  );
 }
 
 // ✅ This component is wrapped by the context provider, so it's safe to use the hook here
@@ -46,7 +50,7 @@ function AppContent() {
       </Stack>
 
       <SignedIn>
-        <SyncUserToFirestore />
+        <SyncUserToSupabase />
       </SignedIn>
       <SignedOut>
         <Redirect href="../(public)/Welcome" />

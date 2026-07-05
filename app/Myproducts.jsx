@@ -7,16 +7,7 @@ import {
   FlatList,
 } from "react-native";
 import React, { useEffect, useState } from "react";
-import {
-  collection,
-  getDocs,
-  getFirestore,
-  deleteDoc,
-  doc,
-  updateDoc,
-} from "firebase/firestore";
-import { getStorage, ref, deleteObject } from "firebase/storage";
-import { app } from "../firebaseconfig";
+import { supabase } from "../lib/supabase";
 import { useUser } from "@clerk/clerk-expo";
 import ProductCard from "../components/Card";
 import EditModal from "../components/Modal/EditModal";
@@ -26,23 +17,22 @@ const Myproducts = () => {
   const [Loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [Data, setData] = useState({});
-  const db = getFirestore(app);
   const { user } = useUser();
 
   const handleEdit = (item) => {
     setData({
-      desc: item.desc,
+      desc: item.description,
       name: item.title,
       price: item.price,
+      docId: item.id,
     });
     setModalVisible(true);
-    return Data;
   };
 
   const handleSubmit = async (item) => {
     Alert.alert(
-      "Delete Post",
-      "Are you sure you want to save the changes ?",
+      "Update Post",
+      "Are you sure you want to save the changes?",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -50,15 +40,21 @@ const Myproducts = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              const docRef = doc(db, "UserPosts", item.docId);
-              await updateDoc(docRef, {
-                name: Data.name,
-                desc: Data.desc,
-                price: Data.price,
-              });
+              const { error } = await supabase
+                .from("user_posts")
+                .update({
+                  name: Data.name,
+                  description: Data.desc,
+                  price: Data.price,
+                })
+                .eq("id", Data.docId);
+
+              if (error) throw error;
+
               console.log("Document successfully updated!");
               setModalVisible(false);
-              GetPostsData(); // refresh the list
+              setData({});
+              GetPostsData();
             } catch (error) {
               console.error("Error updating document: ", error);
             }
@@ -69,26 +65,17 @@ const Myproducts = () => {
     );
   };
 
-  const getPathFromURL = (url) => {
-    const decodedUrl = decodeURIComponent(url);
-    const match = decodedUrl.match(/\/o\/(.*?)\?/);
-    return match ? match[1] : null;
-  };
-
   const GetPostsData = async () => {
     setLoading(true);
     try {
-      const querySnapshot = await getDocs(collection(db, "UserPosts"));
-      const data = querySnapshot.docs
-        .map((docSnap) => ({
-          ...docSnap.data(),
-          docId: docSnap.id, // ✅ include the document ID
-        }))
-        .filter(
-          (item) => item.useremail === user.primaryEmailAddress.emailAddress
-        );
+      const { data, error } = await supabase
+        .from("user_posts")
+        .select("*")
+        .eq("useremail", user.primaryEmailAddress.emailAddress);
 
-      SetMyProducts(data);
+      if (error) throw error;
+
+      SetMyProducts(data || []);
       setLoading(false);
     } catch (error) {
       console.log("Error fetching Posts:", error);
@@ -111,19 +98,23 @@ const Myproducts = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              // Delete Firestore document
-              const docRef = doc(db, "UserPosts", item.docId);
-              await deleteDoc(docRef);
+              const { error: deleteError } = await supabase
+                .from("user_posts")
+                .delete()
+                .eq("id", item.id);
+
+              if (deleteError) throw deleteError;
 
               // Delete the image from storage
-              const imagePath = getPathFromURL(item.image);
-              if (imagePath) {
-                const storage = getStorage();
-                const imageRef = ref(storage, imagePath);
-                await deleteObject(imageRef);
+              if (item.image) {
+                const imagePath = extractStoragePath(item.image);
+                if (imagePath) {
+                  await supabase.storage
+                    .from("community-posts")
+                    .remove([imagePath]);
+                }
               }
 
-              // Refresh data
               GetPostsData();
               console.log("Post and image deleted");
             } catch (error) {
@@ -134,6 +125,12 @@ const Myproducts = () => {
       ],
       { cancelable: true }
     );
+  };
+
+  const extractStoragePath = (url) => {
+    // Supabase public URL format: .../object/public/community-posts/path
+    const match = url.match(/\/community-posts\/(.+)$/);
+    return match ? match[1] : null;
   };
 
   const CheckOwner = (email) => {
@@ -158,7 +155,7 @@ const Myproducts = () => {
           <FlatList
             numColumns={2}
             data={MyProducts}
-            keyExtractor={(item) => item.customId}
+            keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => (
               <View>
                 <ProductCard

@@ -6,17 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from "react-native";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useUser } from "@clerk/clerk-expo";
-import {
-  collection,
-  getDocs,
-  getFirestore,
-  onSnapshot,
-  query,
-  where,
-} from "firebase/firestore";
-import { app } from "../../firebaseconfig";
+import { supabase } from "../../lib/supabase";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { UseTheme } from "../../Context/ThemeContext";
@@ -26,13 +18,12 @@ const MyChats = () => {
   const [loading, setLoading] = useState(true);
   const [chats, setChats] = useState([]);
   const username = user?.primaryEmailAddress?.emailAddress;
-  const db = getFirestore(app);
   const navigation = useNavigation();
   const { Theme, commonStyles, getOppositeColor, colorShades } = UseTheme();
 
   // Use useFocusEffect to refresh data when the screen comes into focus
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       if (isLoaded && username) {
         fetchChats();
       }
@@ -43,55 +34,41 @@ const MyChats = () => {
     if (!username) return;
 
     try {
-      const chatsRef = collection(db, "Chats");
-      const q = query(
-        chatsRef,
-        where("participants", "array-contains", username)
-      );
+      const { data, error } = await supabase
+        .from("chats")
+        .select("*")
+        .contains("participants", [username])
+        .order("last_updated", { ascending: false });
 
-      // Use onSnapshot for real-time updates
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const chatData = snapshot.docs.map((doc) => {
-          const data = doc.data();
-          const chatId = doc.id;
+      if (error) throw error;
 
-          // Extract the other user's email from participants array
-          const otherUserEmail =
-            data.participants?.find((email) => email !== username) || "";
+      const chatData = (data || []).map((chat) => {
+        const otherUserEmail =
+          chat.participants?.find((email) => email !== username) || "";
 
-          // Gather all necessary data for navigation
-          return {
-            id: chatId,
-            otherUserEmail,
-            lastMessage: data.lastMessage || "No messages yet",
-            lastUpdated: data.lastUpdated
-              ? data.lastUpdated.toDate()
-              : new Date(),
-            participants: data.participants || [],
-            productName: data.productName || "",
-            productPrice: data.productPrice || "",
-            SellerId: data.SellerId || otherUserEmail,
-            docId: data.docId || chatId,
-            buyer_id: data.buyer_id || otherUserEmail,
-            sellerName:data.seller_name,
-            buyerName:data.buyer_name,
-            title:data.title,
-            sellerimage:data.seller_image,
-            buyerimage:data.buyerimage
-
-            // Add any other fields needed for ChatScreen
-          };
-        });
-
-        // Sort chats by most recent first
-        const sortedChats = chatData.sort(
-          (a, b) => b.lastUpdated - a.lastUpdated
-        );
-        setChats(sortedChats);
-        setLoading(false);
+        return {
+          id: chat.id,
+          otherUserEmail,
+          lastMessage: chat.last_message || "No messages yet",
+          lastUpdated: chat.last_updated
+            ? new Date(chat.last_updated)
+            : new Date(),
+          participants: chat.participants || [],
+          productName: chat.product_name || "",
+          productPrice: chat.product_price || "",
+          SellerId: chat.seller_id || otherUserEmail,
+          docId: chat.doc_id || chat.id,
+          buyer_id: chat.buyer_id || otherUserEmail,
+          sellerName: chat.seller_name,
+          buyerName: chat.buyer_name,
+          title: chat.title,
+          sellerimage: chat.seller_image,
+          buyerimage: chat.buyer_image,
+        };
       });
 
-      return unsubscribe;
+      setChats(chatData);
+      setLoading(false);
     } catch (error) {
       console.error("Error fetching chats:", error);
       setLoading(false);

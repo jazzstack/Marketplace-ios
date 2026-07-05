@@ -11,8 +11,7 @@ import {
 import React, { useEffect, useState, useCallback } from "react";
 import ProfileHeader from "../../components/ProfileHeader";
 import Slider from "../../components/Slider";
-import { collection, getDocs, getFirestore } from "firebase/firestore";
-import { app } from "../../firebaseconfig";
+import { supabase } from "../../lib/supabase";
 import Category from "../../components/Categories";
 import LatestItems from "../../components/LatestItems";
 import { useAuth } from "../../Context/DataContext";
@@ -28,7 +27,6 @@ const Home = () => {
   const { getCurrentLocation, location, address } = useLocation();
   const { Theme, commonStyles, getOppositeColor, colorShades } = UseTheme();
   const navigation = useNavigation();
-  const db = getFirestore(app);
 
   const [Slider_Img, SetSlider_Img] = useState([]);
   const [filteredPosts, setFilteredPosts] = useState([]);
@@ -37,11 +35,11 @@ const Home = () => {
 
   const getsliderimage = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, "Sliders"));
-      const Slider = querySnapshot.docs.map((doc) => doc.data());
-      SetSlider_Img(Slider);
+      const { data, error } = await supabase.from("sliders").select("*");
+      if (error) throw error;
+      SetSlider_Img(data || []);
     } catch (error) {
-      console.error("Error fetching categories:", error);
+      console.error("Error fetching sliders:", error);
     }
   };
 

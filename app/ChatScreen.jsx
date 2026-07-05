@@ -17,21 +17,9 @@ import {
 } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import { ClerkLoading, useUser } from "@clerk/clerk-expo";
-import { db } from "../firebaseconfig";
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  serverTimestamp,
-  setDoc,
-  query,
-  orderBy,
-  onSnapshot,
-} from "firebase/firestore";
+import { useUser } from "@clerk/clerk-expo";
+import { supabase } from "../lib/supabase";
 import { Image } from "expo-image";
-import { BlurView } from "expo-blur";
 import { UseTheme } from "../Context/ThemeContext";
 
 const { width } = Dimensions.get("window");
@@ -62,35 +50,36 @@ const ChatScreen = () => {
         ? `${buyer_id}_${seller_id}_${docId}`
         : `${seller_id}_${buyer_id}_${docId}`;
 
-    const chatref = doc(db, "Chats", ChatId);
-    const chatsnap = await getDoc(chatref);
-
     try {
-      // Initiates the first message as Hi
-      if (!chatsnap.exists()) {
-        // Create chat document
-        await setDoc(chatref, {
-          lastMessage: "I am interested in your product!",
-          lastUpdated: serverTimestamp(),
+      const { data: existingChat } = await supabase
+        .from("chats")
+        .select("id")
+        .eq("id", ChatId)
+        .single();
+
+      if (!existingChat) {
+        await supabase.from("chats").insert({
+          id: ChatId,
+          last_message: "I am interested in your product!",
+          last_updated: new Date().toISOString(),
           participants: [buyer_id, seller_id],
-          productName: item.title,
-          productPrice: item.price,
-          SellerId: seller_id,
-          docId: item.docId,
+          product_name: item.title,
+          product_price: item.price,
+          seller_id: seller_id,
+          doc_id: item.docId,
           buyer_id: buyer_id,
           seller_name: item.seller_name,
           seller_image: item.sellerimage,
           buyer_name: currentUser,
-          buyerimage: user.imageUrl,
+          buyer_image: user.imageUrl,
           title: item.title,
         });
 
-        const messagesRef = collection(db, "Chats", ChatId, "messages");
-
-        await addDoc(messagesRef, {
+        await supabase.from("messages").insert({
+          chat_id: ChatId,
           sender: usermail,
           data: `I am interested in your ${item.title}`,
-          timestamp: serverTimestamp(),
+          timestamp: new Date().toISOString(),
         });
 
         console.log("Chat and first message created.");
@@ -131,45 +120,68 @@ const ChatScreen = () => {
     }
   };
 
-  // Fetch messages from Firestore
+  // Fetch messages from Supabase with real-time subscription
   useEffect(() => {
-    const fetchMessages = async () => {
-      const buyer_id = buyerId;
-      const seller_id = SellerId;
-      const docId = item.docId;
+    const buyer_id = buyerId;
+    const seller_id = SellerId;
+    const docId = item.docId;
 
-      if (!buyer_id || !seller_id) return;
+    if (!buyer_id || !seller_id) return;
 
-      const ChatId =
-        buyer_id < seller_id
-          ? `${buyer_id}_${seller_id}_${docId}`
-          : `${seller_id}_${buyer_id}_${docId}`;
+    const ChatId =
+      buyer_id < seller_id
+        ? `${buyer_id}_${seller_id}_${docId}`
+        : `${seller_id}_${buyer_id}_${docId}`;
 
-      const messagesRef = collection(db, "Chats", ChatId, "messages");
+    const loadMessages = async () => {
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("chat_id", ChatId)
+        .order("timestamp", { ascending: true });
 
-      const q = query(messagesRef, orderBy("timestamp", "asc"));
+      if (error) {
+        console.error("Error fetching messages:", error);
+        return;
+      }
 
-      // Listen for real-time updates in the firestore database
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const messagesArray = querySnapshot.docs.map((doc) => doc.data());
-        setMessages(messagesArray); // Update the state with the fetched messages
-
-        // Scroll to bottom when new messages arrive
-        if (flatListRef.current && messagesArray.length > 0) {
-          setTimeout(() => {
-            flatListRef.current.scrollToEnd({ animated: true });
-          }, 200);
-        }
-      });
-
-      // Clean up the listener when the component unmounts
-      return () => unsubscribe();
+      setMessages(data || []);
+      if (flatListRef.current && data?.length > 0) {
+        setTimeout(() => {
+          flatListRef.current.scrollToEnd({ animated: true });
+        }, 200);
+      }
     };
 
-    if (isLoaded && user) {
-      createChatIfNotExists();
-      fetchMessages();
-    }
+    // Subscribe to real-time changes
+    const channel = supabase.channel(`messages:${ChatId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "messages",
+          filter: `chat_id=eq.${ChatId}`,
+        },
+        () => {
+          loadMessages();
+        }
+      )
+      .subscribe();
+
+    const initialLoad = async () => {
+      if (isLoaded && user) {
+        await createChatIfNotExists();
+        await loadMessages();
+      }
+    };
+
+    initialLoad();
+
+    // Clean up the subscription on unmount
+    return () => {
+      channel.unsubscribe();
+    };
   }, [isLoaded, user, SellerId]);
 
   const handleSendMessage = async () => {
@@ -184,12 +196,11 @@ const ChatScreen = () => {
         ? `${buyer_id}_${seller_id}_${docId}`
         : `${seller_id}_${buyer_id}_${docId}`;
 
-    const messagesRef = collection(db, "Chats", ChatId, "messages");
-
-    await addDoc(messagesRef, {
+    await supabase.from("messages").insert({
+      chat_id: ChatId,
       sender: usermail,
       data: messageInput.trim(),
-      timestamp: serverTimestamp(),
+      timestamp: new Date().toISOString(),
     });
 
     setMessageInput("");
@@ -339,7 +350,7 @@ const ChatScreen = () => {
                           },
                         ]}
                       >
-                        {item.timestamp.toDate().toLocaleTimeString([], {
+                        {new Date(item.timestamp).toLocaleTimeString([], {
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
